@@ -1,0 +1,5 @@
+pvporcupine~=2.2.1
+vosk~=0.3.44
+pvrecorder~=1.2.1
+fuzzywuzzy~=0.18.0
+py3-tts==3.5
