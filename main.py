@@ -2,6 +2,7 @@ import pvporcupine
 from pvrecorder import PvRecorder
 import vosk
 import pyttsx3
+from fuzzywuzzy import fuzz
 
 import time
 import struct
@@ -18,8 +19,9 @@ def listen_to_wake_word(voice_model: pvporcupine.Porcupine, mic: PvRecorder):
             keyword_index = voice_model.process(mic.read())
             if keyword_index >= 0:
                 print("Распознано:  Привет Атом")
-
                 mic.stop()
+
+                say('Да, Никита')
                 return True
 
     except KeyboardInterrupt:
@@ -36,9 +38,11 @@ def listen_to_command(voice_model: vosk.KaldiRecognizer, mic: PvRecorder, start_
 
             if voice_model.AcceptWaveform(sp):
                 mic.stop()
-                print(json.loads(voice_model.Result()))
-                answer()
+
+                answer(json.loads(voice_model.Result())["text"])
+
                 start_time = time.time()
+
                 mic.start()
 
         mic.stop()
@@ -47,15 +51,51 @@ def listen_to_command(voice_model: vosk.KaldiRecognizer, mic: PvRecorder, start_
         mic.stop()
 
 
-def answer():
+def filter_request(request):
+    result = request
+
+    for word in request_remove:
+        result = result.replace(word, "").strip()
+
+    return result
+
+
+def classify_request(request):
+    result = {'cmd': '', 'percent': 0}
+
+    for key, value in commands.items():
+        for option in value:
+            percent = fuzz.ratio(request, option)
+            if percent > result['percent']:
+                result['cmd'] = key
+                result['percent'] = percent
+
+    return result
+
+
+def answer(user_input):
+    request = classify_request(filter_request(user_input))
+    print(request)
+
+    if len(request['cmd'].strip()) == 0:
+        return False
+
+    elif request['percent'] < 70 or request['cmd'] not in commands.keys():
+        say('Извините, я вас плохо понял')
+        return False
+    else:
+        say(f'Выполняю: {request["cmd"]}')
+        # execute_cmd(request['cmd'], user_input)
+        return True
+
+
+def say(text: str):
     # text-to-speech engine
     engine = pyttsx3.init()
 
     # speed and volume of the voice
     engine.setProperty('rate', 150)  # 150 words per minute
     engine.setProperty('volume', 0.8)  # 80% volume
-
-    text = 'Я вас услышал'
 
     engine.say(text)
     engine.runAndWait()
@@ -72,8 +112,8 @@ if __name__ == '__main__':
 
     # commands recogniser
     vosk_model = vosk.Model(vosk_model_path)
-    samplerate = 16000
-    recogniser = vosk.KaldiRecognizer(vosk_model, samplerate)
+    sample_rate = 16000
+    recogniser = vosk.KaldiRecognizer(vosk_model, sample_rate)
 
     # mic listener
     recorder = PvRecorder(
